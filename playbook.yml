@@ -1,0 +1,31 @@
+---
+- hosts: all
+  become: yes
+
+  vars:
+    - toplevel_timeservers: ['pool.ntp.org']
+    #- timelord: 'apache-1'
+    - ntp_netdevice: 'eth2'
+  tasks:
+    - name: Install NTP
+      apt: package=ntp state=present update_cache=yes
+      tags: ntp
+  
+    - name: Copy over the NTP configuration
+      template: src=ntp.conf dest=/etc/ntp.conf
+      notify:
+        - restart ntp
+        - force ntp update
+      tags: ntp
+    
+    - name: Make sure NTP is started up
+      service: name=ntp state=started enabled=yes
+      tags: ntp
+
+  handlers:
+    - name: restart ntp
+      service: name=ntp state=restarted
+  
+    - name: force ntp update
+      shell: "service ntp stop && ntpdate -s {{ hostvars[groups[timelord][0]]['ansible_' ~ ntp_netdevice]['ipv4']['address'] }} && service ntp start"
+      when: ansible_hostname != timelord
